@@ -84,7 +84,7 @@ void loop() {
     if (httpCode == HTTP_CODE_OK) {
       String payload = http.getString();  // Get the response payload
 
-      DynamicJsonDocument doc(16384);  // Allocate the JSON document
+      DynamicJsonDocument doc(20480);  // Allocate the JSON document 16384
       deserializeJson(doc, payload);  // Parse JSON data
 
       const float rateBTC = doc["data"]["BTC"][0]["quote"]["CAD"]["price"];  // Extract BTC rate
@@ -169,7 +169,7 @@ void loop() {
         M5.Lcd.setTextSize(2);
         M5.Lcd.setTextColor(TFT_GREEN);
         formatAndDisplay(rateXRP, "XRP CAD:", 43);
-  
+   
         M5.Lcd.setTextSize(1);
         M5.Lcd.setTextColor(TFT_WHITE);
         M5.Lcd.drawString("Last updated:", CENTER, 83);
