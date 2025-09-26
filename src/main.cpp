@@ -1,195 +1,303 @@
-/* Author: Stéphane Fréchette
- * Version: 1.0
- *
- * Description: This code is for the M5StickC Plus to display the current rates of Bitcoin (BTC), 
- * Ethereum (ETH), and Ripple (XRP) in Canadian dollars (CAD) using the CoinMarketCap API.
- * The rates are updated every 5 minutes. Each rate is displayed for 10 seconds before switching to the next rate.
+/* 
+ * Cryptocurrency & Stock Price Display for M5StickC Plus
+ * Author: Stéphane Fréchette
+ * Version: 2.1 (With MSFT Stock)
+ * 
+ * Features:
+ * - Displays BTC, ETH, XRP prices in CAD + MSFT stock price in USD
+ * - Updates every 5 minutes from CoinMarketCap API + Financial Modeling Prep API
+ * - Unified display rotation: BTC → ETH → XRP → MSFT → (repeat)
+ * - Modular, maintainable code structure
+ * - Proper error handling and recovery
+ * - Optimized performance and memory usage
  */
 
 #include <Arduino.h>
-#include <ArduinoJson.h>
 #include <M5StickCPlus.h>
-#include <HTTPClient.h> 
-#include <WiFi.h>
-#include <WiFiClientSecure.h>
-#include <secrets.h>
+#include <time.h>
+#include "config.h"
+#include "crypto_display.h"
+#include "api_client.h"
+#include "secrets.h"
 
-#define CENTER 120
+// Global objects
+CryptoDisplay display;
+APIClient apiClient;
 
-// Access the values defined in secrets.h
-const char* ssid = WIFI_SSID;
-const char* password = WIFI_PASSWORD;
-const char* apiEndpoint = API_ENDPOINT; // CoinMarketCap API endpoint
+// Asset data array (crypto + stocks) - Adjusted for proportional font widths
+AssetData assets[] = {
+  {"BTC", "Bitcoin", 0.0, "", 0, 0, 90, false, "CAD", 0.0, false, true},     // Crypto - "Bitcoin" adjusted for actual width
+  {"ETH", "Ethereum", 0.0, "", 0, 0, 102, false, "CAD", 0.0, false, true},   // Crypto - "Ethereum" adjusted for actual width
+  {"XRP", "XRP", 0.0, "", 0, 0, 42, false, "CAD", 0.0, false, true},         // Crypto - "XRP" adjusted for actual width  
+  {"MSFT", "Microsoft", 0.0, "Market Closed", 0, 0, 120, true, "USD", 0.0, false, true}   // Stock - "Microsoft" = adjusted for actual width
+};
+const int assetCount = sizeof(assets) / sizeof(assets[0]);
 
-unsigned long startTime = 0; // Variable to store the start time
-const unsigned long interval = 300000; // Interval set for 5 minutes (5 * 60 * 1000 milliseconds)
+// Timing variables
+unsigned long lastApiUpdate = 0;
+unsigned long lastDisplaySwitch = 0;
+int currentAssetIndex = 0;
+bool dataLoaded = false;
 
-void formatAndDisplay(float rate, const char* label, int yPos) {
-  String num = String(rate, 2);  // Convert float to string with 2 decimal places
-  int decimalPos = num.indexOf('.');  // Find the position of the decimal point
-  
-  String integerPart = num.substring(0, decimalPos);  // Extract integer part
-  String decimalPart = num.substring(decimalPos);  // Extract decimal part including the dot
-  
-  // Format the integer part with commas
-  String formattedNumber = "";
-  int length = integerPart.length();
-  int digits = 0;
+// Brightness control variables - Simple AXP192 control
+int brightnessLevels[] = {20, 40, 60, 80, 100}; // 4 levels: lowest to maximum
+int currentBrightnessIndex = 2; // Start at lowest (index 0, value 10)
+unsigned long lastButtonPress = 0;
+const unsigned long BUTTON_DEBOUNCE_MS = 200; // Debounce delay
 
-  // Insert commas into the integer part
-  for (int i = length - 1; i >= 0; i--) {
-    formattedNumber = integerPart[i] + formattedNumber;
-    digits++;
-    if (digits % 3 == 0 && i != 0) {
-      formattedNumber = ',' + formattedNumber;
-    }
-  }
-  formattedNumber += decimalPart;  // Append the decimal part back to the formatted number
-
-  M5.Lcd.drawString(formattedNumber, CENTER, yPos);  // Display the formatted rate
-  Serial.println(label + String(" ") + formattedNumber);  // Output to serial
-}
+// Function declarations
+bool fetchAndUpdateData();
+void cycleBrightness();
+bool isMarketOpen();
+void setupTime();
 
 void setup() {
   Serial.begin(115200);
+  Serial.println("\n=== Cryptocurrency Price Display v2.0 ===");
 
-  startTime = millis(); // Initialize the start time
-
-  WiFi.begin(ssid, password);
-
+  // Initialize M5StickC Plus
   M5.begin();
-  M5.Lcd.setRotation(3);
-  M5.Axp.ScreenBreath(32);
-  M5.Lcd.fillScreen(TFT_BLACK);
-  M5.Lcd.setTextSize(1);
-
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+  display.begin();
+  
+  // Set initial brightness (lowest) - Using AXP192 method
+  M5.Axp.ScreenBreath(brightnessLevels[currentBrightnessIndex]);
+  Serial.printf("Initial brightness set to: %d/100\n", brightnessLevels[currentBrightnessIndex]);
+  
+  // Show WiFi connection status
+  display.displayWiFiStatus("Connecting...");
+  
+  // First, scan for available networks for diagnostics
+  apiClient.scanNetworks();
+  
+  // Connect to WiFi with timeout
+  if (!apiClient.connectWiFi(WIFI_SSID, WIFI_PASSWORD, WIFI_CONNECT_TIMEOUT)) {
+    display.displayError("WiFi connection failed");
+    Serial.printf("WiFi Error: %s\n", apiClient.getLastError());
+    Serial.println("Retrying in 10 seconds...");
+    delay(10000);
+    ESP.restart(); // Restart and try again
   }
-  Serial.println("\nWiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+  
+  display.displayWiFiStatus("Connected! Loading data...");
+  
+  // Setup time synchronization with NTP
+  setupTime();
+  
+  // Initial data fetch
+  if (fetchAndUpdateData()) {
+    dataLoaded = true;
+    Serial.println("Initial data loaded successfully");
+  } else {
+    display.displayError("Failed to load initial data");
+    delay(3000);
+  }
+  
+  lastApiUpdate = millis();
+  lastDisplaySwitch = millis();
 }
 
 void loop() {
-  if (WiFi.status() == WL_CONNECTED) {
-    WiFiClientSecure client;  // Create a secure client
-    client.setInsecure();     // Use this line if you do not want to manage SSL certificates
-
-    HTTPClient http;
-    http.begin(client, apiEndpoint);  // Start connection using secure client
-    int httpCode = http.GET();        // Send the request
-
-    if (httpCode == HTTP_CODE_OK) {
-      String payload = http.getString();  // Get the response payload
-
-      DynamicJsonDocument doc(20480);  // Allocate the JSON document 16384
-      deserializeJson(doc, payload);  // Parse JSON data
-
-      const float rateBTC = doc["data"]["BTC"][0]["quote"]["CAD"]["price"];  // Extract BTC rate
-      const char* updatedBTC = doc["data"]["BTC"][0]["quote"]["CAD"]["last_updated"];  // Extract BTC last updated
-
-      const float rateETH = doc["data"]["ETH"][0]["quote"]["CAD"]["price"];  // Extract ETH rate
-      const char* updatedETH = doc["data"]["ETH"][0]["quote"]["CAD"]["last_updated"];  // Extract ETH last updated
-      
-      const float rateXRP = doc["data"]["XRP"][0]["quote"]["CAD"]["price"];  // Extract XRP rate
-      const char* updatedXRP = doc["data"]["XRP"][0]["quote"]["CAD"]["last_updated"];  // Extract XRP last updated
-
-      while (millis() - startTime < interval) {
-        // Display BTC
-        M5.Lcd.fillScreen(TFT_BLACK);
-        M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-        M5.Lcd.setTextFont(2);
-        M5.Lcd.setTextDatum(TC_DATUM);
-
-        M5.Lcd.setTextSize(2);
-        M5.Lcd.drawString("BTC CAD", CENTER, 8);
- 
-        M5.Lcd.setTextSize(2);
-        M5.Lcd.setTextColor(TFT_GREEN);
-        formatAndDisplay(rateBTC, "BTC CAD:", 43);
-
-        M5.Lcd.setTextSize(1);
-        M5.Lcd.setTextColor(TFT_WHITE);
-        M5.Lcd.drawString("Last updated:", CENTER, 83);
-        Serial.print("Last updated: ");
-
-        M5.Lcd.setTextSize(1);
-        M5.Lcd.setTextColor(TFT_WHITE);
-        M5.Lcd.drawString(updatedBTC, CENTER, 103);
-        Serial.println(updatedBTC);
-
-        //draw a frame around the text
-        M5.Lcd.setCursor(0, 0);
-        M5.Lcd.drawRoundRect(4,4,236,130,6,TFT_DARKGREY);
-
-        M5.Lcd.drawRoundRect(4,4,236,130,6,TFT_DARKGREY);
-
-        delay(10000); 
-
-        // Display ETH
-        M5.Lcd.fillScreen(TFT_BLACK);
-        M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-        M5.Lcd.setTextFont(2);
-        M5.Lcd.setTextDatum(TC_DATUM);
-
-        M5.Lcd.setTextSize(2);
-        M5.Lcd.drawString("ETH CAD", CENTER, 8);
-   
-        M5.Lcd.setTextSize(2);
-        M5.Lcd.setTextColor(TFT_GREEN);
-        formatAndDisplay(rateETH, "ETH CAD:", 43);
- 
-        M5.Lcd.setTextSize(1);
-        M5.Lcd.setTextColor(TFT_WHITE);
-        M5.Lcd.drawString("Last updated:", CENTER, 83);
-        Serial.print("Last updated: ");
-
-        M5.Lcd.setTextSize(1);
-        M5.Lcd.setTextColor(TFT_WHITE);
-        M5.Lcd.drawString(updatedETH, CENTER, 103);
-        Serial.println(updatedETH);
-
-        //draw a frame around the text
-        M5.Lcd.setCursor(0, 0);
-        M5.Lcd.drawRoundRect(4,4,236,130,6,TFT_DARKGREY);
-
-        delay(10000); 
-
-        // Display XRP
-        M5.Lcd.fillScreen(TFT_BLACK);
-        M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-        M5.Lcd.setTextFont(2);
-        M5.Lcd.setTextDatum(TC_DATUM);
-
-        M5.Lcd.setTextSize(2);
-        M5.Lcd.drawString("XRP CAD", CENTER, 8);
-
-        M5.Lcd.setTextSize(2);
-        M5.Lcd.setTextColor(TFT_GREEN);
-        formatAndDisplay(rateXRP, "XRP CAD:", 43);
-   
-        M5.Lcd.setTextSize(1);
-        M5.Lcd.setTextColor(TFT_WHITE);
-        M5.Lcd.drawString("Last updated:", CENTER, 83);
-        Serial.print("Last updated: ");
-
-        M5.Lcd.setTextSize(1);
-        M5.Lcd.setTextColor(TFT_WHITE);
-        M5.Lcd.drawString(updatedXRP, CENTER, 103);
-        Serial.println(updatedXRP);
-
-        //draw a frame around the text
-        M5.Lcd.setCursor(0, 0);
-        M5.Lcd.drawRoundRect(4,4,236,130,6,TFT_DARKGREY);
-        delay(10000);
-      }  
-    } else {
-      Serial.print("Error on HTTP request:");
-      Serial.println(httpCode);
-    } 
-    http.end(); // Close connection
+  M5.update(); // Handle button presses
+  
+  unsigned long currentTime = millis();
+  
+  // Handle Button A press for brightness control
+  if (M5.BtnA.wasPressed() && (currentTime - lastButtonPress > BUTTON_DEBOUNCE_MS)) {
+    cycleBrightness();
+    lastButtonPress = currentTime;
   }
-  startTime = millis(); // Reset the start time to now
+  
+  // Check if we need to update data from API
+  if (currentTime - lastApiUpdate >= API_UPDATE_INTERVAL) {
+    display.displayWiFiStatus("Updating prices...");
+    
+    if (fetchAndUpdateData()) {
+      dataLoaded = true;
+      Serial.println("Data updated successfully");
+    } else {
+      Serial.println("Failed to update data, using cached values");
+      display.displayError("Update failed");
+      delay(2000); // Show error briefly
+    }
+    
+    lastApiUpdate = currentTime;
+    lastDisplaySwitch = currentTime; // Reset display timer
+  }
+  
+  // Display asset data if available
+  if (dataLoaded) {
+    // Switch to next asset every DISPLAY_DURATION milliseconds
+    if (currentTime - lastDisplaySwitch >= DISPLAY_DURATION) {
+      currentAssetIndex = (currentAssetIndex + 1) % assetCount;
+      lastDisplaySwitch = currentTime;
+    }
+    
+    display.displayAsset(assets[currentAssetIndex]);
+  }
+  
+  // Small delay to prevent excessive CPU usage
+  delay(100);
+}
+
+bool fetchAndUpdateData() {
+  if (!apiClient.isWiFiConnected()) {
+    Serial.println("WiFi disconnected, attempting reconnection...");
+    if (!apiClient.connectWiFi(WIFI_SSID, WIFI_PASSWORD, WIFI_CONNECT_TIMEOUT)) {
+      return false;
+    }
+  }
+  
+  bool cryptoSuccess = false;
+  bool stockSuccess = false;
+  
+  // Fetch cryptocurrency data (first 3 assets)
+  CryptoData cryptos[3];
+  for (int i = 0; i < 3; i++) {
+    cryptos[i] = assets[i]; // Copy crypto assets
+  }
+  
+  if (apiClient.fetchCryptoData(cryptos, 3)) {
+    Serial.println("Successfully fetched cryptocurrency data:");
+    // Copy back to assets array with price tracking
+    for (int i = 0; i < 3; i++) {
+      // Track price movement
+      if (!assets[i].firstUpdate) {
+        assets[i].priceIncreased = (cryptos[i].price > assets[i].price);
+      }
+      assets[i].previousPrice = assets[i].price;
+      assets[i].price = cryptos[i].price;
+      assets[i].lastUpdated = cryptos[i].lastUpdated;
+      assets[i].firstUpdate = false;
+      
+      Serial.printf("  %s: $%.2f %s", assets[i].symbol, assets[i].price, assets[i].currency);
+      if (!assets[i].firstUpdate) {
+        Serial.printf(" (%s)", assets[i].priceIncreased ? "UP" : "DOWN");
+      }
+      Serial.println();
+    }
+    cryptoSuccess = true;
+  } else {
+    Serial.printf("Failed to fetch crypto data: %s\n", apiClient.getLastError());
+  }
+  
+  // Fetch stock data (MSFT - index 3) with price tracking - only during market hours
+  if (isMarketOpen()) {
+    AssetData tempStock = assets[3]; // Save current state
+    if (apiClient.fetchStockData(assets[3])) {
+      // Track price movement for stock
+      if (!tempStock.firstUpdate) {
+        assets[3].priceIncreased = (assets[3].price > tempStock.price);
+      }
+      assets[3].previousPrice = tempStock.price;
+      assets[3].firstUpdate = false;
+      
+      Serial.printf("Successfully fetched stock data: %s: $%.2f %s", 
+                    assets[3].symbol, assets[3].price, assets[3].currency);
+      if (!tempStock.firstUpdate) {
+        Serial.printf(" (%s)", assets[3].priceIncreased ? "UP" : "DOWN");
+      }
+      Serial.println();
+      stockSuccess = true;
+    } else {
+      Serial.printf("Failed to fetch stock data: %s\n", apiClient.getLastError());
+    }
+  } else {
+    // Market is closed - preserve last price but update status
+    if (assets[3].price > 0.0) {
+      // Keep existing price and arrow, just update timestamp to show market is closed
+      assets[3].lastUpdated = "Market Closed";
+      Serial.printf("Market closed - displaying last known price: %s: $%.2f %s\n", 
+                    assets[3].symbol, assets[3].price, assets[3].currency);
+    } else {
+      // No price data yet - show market closed message
+      assets[3].lastUpdated = "Market Closed";
+      Serial.println("Market closed - no price data available yet");
+    }
+    stockSuccess = true; // Don't treat this as a failure
+  }
+  
+  // Return true if at least one API call succeeded
+  return cryptoSuccess || stockSuccess;
+}
+
+// Cycle through brightness levels when button A is pressed
+void cycleBrightness() {
+  // Move to next brightness level (cycle back to 0 if at end)
+  currentBrightnessIndex = (currentBrightnessIndex + 1) % (sizeof(brightnessLevels) / sizeof(brightnessLevels[0]));
+  
+  // Apply new brightness using AXP192 method
+  M5.Axp.ScreenBreath(brightnessLevels[currentBrightnessIndex]);
+  
+  // Show brightness level briefly
+  Serial.printf("Brightness changed to: %d/100 (level %d)\n", 
+                brightnessLevels[currentBrightnessIndex], currentBrightnessIndex + 1);
+  
+  // Optional: Show brightness on screen briefly (uncomment if desired)
+  /*
+  M5.Lcd.fillRect(10, 10, 120, 30, TFT_BLACK);
+  M5.Lcd.setTextColor(TFT_YELLOW, TFT_BLACK);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setTextDatum(TL_DATUM);
+  M5.Lcd.drawString("Brightness: " + String(brightnessPercent) + "%", 15, 20);
+  delay(1000);
+  */
+}
+
+// Setup NTP time synchronization for Eastern Time (EST/EDT auto-switching)
+void setupTime() {
+  Serial.println("Setting up time synchronization...");
+  
+  // Configure time for Eastern Time with automatic DST handling
+  // EST: UTC-5, EDT: UTC-4 (automatically switches based on date)
+  configTime(-5 * 3600, 3600, "pool.ntp.org", "time.nist.gov");
+  
+  Serial.print("Waiting for NTP time sync");
+  time_t now = time(nullptr);
+  int attempts = 0;
+  while (now < 8 * 3600 * 2 && attempts < 20) { // Wait for valid time
+    delay(500);
+    Serial.print(".");
+    now = time(nullptr);
+    attempts++;
+  }
+  Serial.println();
+  
+  if (now > 8 * 3600 * 2) {
+    struct tm timeinfo;
+    localtime_r(&now, &timeinfo);
+    Serial.printf("Time synchronized: %04d-%02d-%02d %02d:%02d:%02d ET\n",
+                  timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                  timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+  } else {
+    Serial.println("Failed to synchronize time - market hours check may not work correctly");
+  }
+}
+
+// Check if US stock market is open (9:05 AM - 4:05 PM ET, Monday-Friday)
+bool isMarketOpen() {
+  time_t now = time(nullptr);
+  struct tm timeinfo;
+  localtime_r(&now, &timeinfo);
+  
+  // Check if it's a weekday (Monday=1, Friday=5)
+  int dayOfWeek = timeinfo.tm_wday;
+  if (dayOfWeek == 0 || dayOfWeek == 6) { // Sunday=0, Saturday=6
+    Serial.println("Market closed: Weekend");
+    return false;
+  }
+  
+  // Check time range: 9:05 AM (09:05) to 4:05 PM (16:05) EDT
+  int currentHour = timeinfo.tm_hour;
+  int currentMinute = timeinfo.tm_min;
+  int currentTimeInMinutes = currentHour * 60 + currentMinute;
+  
+  int marketOpenMinutes = 9 * 60 + 5;  // 9:05 AM = 545 minutes
+  int marketCloseMinutes = 16 * 60 + 5; // 4:05 PM = 965 minutes
+  
+  bool isOpen = (currentTimeInMinutes >= marketOpenMinutes && currentTimeInMinutes <= marketCloseMinutes);
+  
+  Serial.printf("Current time: %02d:%02d ET, Market %s\n", 
+                currentHour, currentMinute, isOpen ? "OPEN" : "CLOSED");
+  
+  return isOpen;
 }
