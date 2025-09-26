@@ -3,7 +3,7 @@
 A comprehensive cryptocurrency and stock price ticker that displays real-time prices on the M5StickC Plus.
 Features intelligent market hours detection, price movement indicators, and customizable brightness control.
 
-![M5StickC Plus Display](https://github.com/sfrechette/crypto-price-cad/assets/1049568/f1a2c665-e9b1-4b42-a8e6-ab5e5750c712)
+![M5StickC Plus Display](https://github.com/sfrechette/crypto-price-cad/blob/main/crypto-price-cad.jpeg)
 
 ## 🚀 Features
 
