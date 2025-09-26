@@ -1,51 +1,59 @@
 # Crypto & Stock Price Display for M5StickC Plus
 
-A comprehensive cryptocurrency and stock price ticker that displays real-time prices on the M5StickC Plus. Features intelligent market hours detection, price movement indicators, and customizable brightness control.
+A comprehensive cryptocurrency and stock price ticker that displays real-time prices on the M5StickC Plus.
+Features intelligent market hours detection, price movement indicators, and customizable brightness control.
 
-![M5StickC Plus Display](https://github.com/sfrechette/crypto-price-cad/blob/main/crypto-price-cad.jpeg)
+![M5StickC Plus Display](https://github.com/sfrechette/crypto-price-cad/assets/1049568/f1a2c665-e9b1-4b42-a8e6-ab5e5750c712)
 
 ## 🚀 Features
 
 - **Multi-Asset Display:** BTC, ETH, XRP (CAD) + MSFT Stock (USD)
-- **Smart Market Hours:** Stock API only fetches during trading hours (9:05 AM - 4:05 PM ET) with automatic EST/EDT switching
+- **Smart Market Hours:** Stock API only fetches during trading hours (9:05 AM - 4:05 PM ET)
+  with automatic EST/EDT switching
 - **Price Movement Indicators:** Green up arrows ↗️ and red down arrows ↘️
 - **5-Level Brightness Control:** 20%, 40%, 60%, 80%, 100% (Button A to cycle)
 - **Efficient API Usage:** 5-minute update intervals to preserve battery and API quotas
 - **NTP Time Synchronization:** Automatic Eastern Time (EST/EDT) with DST switching
-- **Market Status Display:** Shows "Market Closed" when appropriate while preserving last known prices
+- **Market Status Display:** Shows "Market Closed" when appropriate while preserving
+  last known prices
 - **Professional Display:** Centered icons, dynamic positioning, smooth transitions
 
 ## 📋 Hardware Requirements
 
 - **M5StickC Plus ESP32-PICO Mini IoT Development Kit**
-  - [Purchase Link](https://shop.m5stack.com/products/m5stickc-plus-esp32-pico-mini-iot-development-kit)
+  - [Purchase Link][m5stick-purchase]
   - [GitHub Repository](https://github.com/m5stack/M5StickC-Plus)
 
 ## 🔑 API Requirements
 
 ### CoinMarketCap API (Cryptocurrency Data)
+
 - Create account at [CoinMarketCap API](https://coinmarketcap.com/api/)
 - Free tier: 10,000 calls/month (sufficient for this project)
 
 ### Financial Modeling Prep API (Stock Data)
+
 - Create account at [Financial Modeling Prep](https://financialmodelingprep.com/)
 - Free tier available
 
 ## ⚙️ Installation & Setup
 
 1. **Clone Repository:**
+
    ```bash
    git clone https://github.com/sfrechette/crypto-price-cad.git
    cd crypto-price-cad
    ```
 
 2. **Configure API Keys:**
+
    ```bash
    cp secrets_template.h src/secrets.h
    # Edit src/secrets.h with your credentials
    ```
 
 3. **Build & Upload:**
+
    ```bash
    pio run --target upload
    ```
@@ -53,6 +61,7 @@ A comprehensive cryptocurrency and stock price ticker that displays real-time pr
 ## 🏗️ Architecture Overview
 
 ### Project Structure
+
 ```
 crypto-price-cad/
 ├── src/
@@ -70,6 +79,7 @@ crypto-price-cad/
 ## 🔄 Code Execution Flow
 
 ### 📋 Startup Sequence (setup())
+
 ```
 Arduino Framework → main() → setup()
 ├── 1. Serial.begin(115200)           # Debug output
@@ -78,12 +88,13 @@ Arduino Framework → main() → setup()
 ├── 4. Set brightness (60% default)   # AXP192 brightness control
 ├── 5. apiClient.scanNetworks()       # WiFi network scan
 ├── 6. apiClient.connectWiFi()        # Connect to WiFi
-├── 7. setupTime()                    # NTP time synchronization (Eastern Time)
+├── 7. setupTime()                    # NTP time sync (Eastern Time)
 ├── 8. fetchAndUpdateData()           # Initial data fetch
 └── 9. Initialize timers              # Setup update intervals
 ```
 
 ### 🔄 Main Loop (loop()) - Repeats every 100ms
+
 ```
 loop() [Continuous Execution]
 ├── M5.update()                       # Check button presses
@@ -106,6 +117,7 @@ loop() [Continuous Execution]
 ```
 
 ### 🌐 API Data Flow
+
 ```
 fetchAndUpdateData()
 ├── Crypto API Flow (24/7):
@@ -113,14 +125,15 @@ fetchAndUpdateData()
 │   ├── JSON Response → parseCryptoJsonResponse()
 │   └── Update BTC, ETH, XRP prices
 └── Stock API Flow (Market Hours Only):
-    ├── isMarketOpen() → Check Eastern Time & weekday (EST/EDT auto-switching)
+    ├── isMarketOpen() → Check Eastern Time & weekday (EST/EDT auto)
     ├── HTTPSClient → financialmodelingprep.com (if market open)
     ├── JSON Response → parseStockJsonResponse() (if market open)
     ├── Update MSFT price with timestamp conversion (if market open)
-    └── Set "Market Closed" status & preserve last price (if market closed)
+    └── Set "Market Closed" status & preserve last price (if closed)
 ```
 
 ### 🖥️ Display Rendering Flow
+
 ```
 displayAsset(asset)
 ├── Calculate Layout:
@@ -184,6 +197,7 @@ flowchart TD
 ## 📊 Key Function Groups
 
 ### 🌐 API & Network Functions
+
 - `APIClient::connectWiFi()` - WiFi connection with timeout
 - `APIClient::fetchCryptoData()` - CoinMarketCap API calls
 - `APIClient::fetchStockData()` - Financial Modeling Prep API calls
@@ -191,12 +205,14 @@ flowchart TD
 - `isMarketOpen()` - Eastern Time market hours detection with EST/EDT auto-switching
 
 ### 🖥️ Display Functions
+
 - `CryptoDisplay::displayAsset()` - Main rendering function
 - `CryptoDisplay::displayIcon()` - Asset icon rendering
 - `CryptoDisplay::displayPriceArrow()` - Price movement indicators
 - `CryptoDisplay::formatPrice()` - Price formatting with commas
 
 ### 🔧 Utility Functions
+
 - `setupTime()` - NTP synchronization
 - `cycleBrightness()` - Brightness control
 - `fetchAndUpdateData()` - Main update coordinator
@@ -204,17 +220,20 @@ flowchart TD
 ## 🆕 Latest Features & Improvements
 
 ### **Eastern Time Zone Support (v2.1)**
+
 - **Automatic EST/EDT Switching:** Uses `configTime(-5 * 3600, 3600, ...)` for proper US Eastern Time
 - **No More Midnight API Calls:** Fixed timezone bug that caused stock fetching at 11:30 PM
 - **Accurate Market Hours:** 9:05 AM - 4:05 PM ET with automatic daylight saving adjustments
 
 ### **Smart Market Status Display (v2.1)**
+
 - **"Market Closed" Message:** Shows clear status when stock market is closed
 - **Price Persistence:** Last known stock price remains visible until next trading day
 - **Arrow Preservation:** Price movement indicators persist through market close
 - **Intelligent Initialization:** Shows "Market Closed" instead of blank display on startup
 
 ### **Enhanced User Experience**
+
 - **Professional Status Messages:** Clear communication of market state
 - **Data Continuity:** No loss of price information during market closure
 - **Battery Optimization:** Zero unnecessary API calls during off-hours
@@ -223,17 +242,20 @@ flowchart TD
 ## ⚡ Performance Optimizations
 
 ### Battery Life
+
 - **5-minute API intervals** instead of continuous fetching
 - **Market hours detection** prevents unnecessary stock API calls
 - **Partial screen updates** to minimize display power consumption
 - **100ms loop delay** to reduce CPU usage
 
 ### API Efficiency
+
 - **Smart caching** - displays last known prices during API failures
 - **Rate limit compliance** - stays within free tier quotas
 - **Error handling** - graceful degradation on network issues
 
 ### Memory Management
+
 - **PROGMEM storage** for icons (saves RAM)
 - **Static buffers** for timestamp conversion
 - **Efficient string handling** to prevent memory fragmentation
@@ -241,18 +263,21 @@ flowchart TD
 ## 🎯 Configuration Options
 
 ### Update Intervals (config.h)
+
 ```cpp
 #define API_UPDATE_INTERVAL (5 * 60 * 1000)    // 5 minutes
 #define DISPLAY_DURATION (3 * 1000)            // 3 seconds per asset
 ```
 
 ### Brightness Levels (main.cpp)
+
 ```cpp
 int brightnessLevels[] = {20, 40, 60, 80, 100}; // 5 levels
 int currentBrightnessIndex = 2;                  // Default: 60%
 ```
 
 ### Market Hours (main.cpp)
+
 ```cpp
 int marketOpenMinutes = 9 * 60 + 5;   // 9:05 AM ET
 int marketCloseMinutes = 16 * 60 + 5;  // 4:05 PM ET
@@ -262,12 +287,14 @@ int marketCloseMinutes = 16 * 60 + 5;  // 4:05 PM ET
 ## 🛠️ Development Tools
 
 ### Code Analysis Tools
+
 - **Doxygen + Graphviz** - Generate call graphs from comments
 - **VS Code + C/C++ Extension** - Call hierarchy viewer
 - **Mermaid.js** - Flowchart visualization
 - **PlatformIO** - Build system and debugging
 
 ### Debugging
+
 ```bash
 # Serial monitor
 pio device monitor --baud 115200
@@ -284,6 +311,7 @@ pio run --target upload && pio device monitor
 ### Serial Output Examples
 
 **During Market Hours:**
+
 ```
 === Cryptocurrency Price Display v2.0 ===
 WiFi connected to: YourNetwork
@@ -298,12 +326,14 @@ Brightness changed to: 80/100 (level 4)
 ```
 
 **After Market Close:**
+
 ```
 Current time: 16:06 ET, Market CLOSED
 Market closed - displaying last known price: MSFT: $425.67 USD
 ```
 
 **Weekend/Before First Fetch:**
+
 ```
 Current time: 10:30 ET, Market CLOSED
 Market closed - no price data available yet
@@ -312,6 +342,7 @@ Market closed - no price data available yet
 ## 🔧 Troubleshooting
 
 ### Common Issues
+
 1. **WiFi Connection Failed** - Check credentials in `secrets.h`
 2. **API Errors** - Verify API keys and quotas
 3. **Time Sync Issues** - Check NTP server accessibility
@@ -321,6 +352,7 @@ Market closed - no price data available yet
 7. **Price Arrows Wrong Color** - Up arrows should be green, down arrows red; display may interpret colors differently
 
 ### Debug Steps
+
 1. Enable serial monitor for detailed logs
 2. Check WiFi signal strength
 3. Verify API responses in serial output
@@ -347,3 +379,6 @@ This project is open source. See the LICENSE file for details.
 ---
 
 **Built with ❤️ for the maker community**
+
+<!-- Reference Links -->
+[m5stick-purchase]: https://shop.m5stack.com/products/m5stickc-plus-esp32-pico-mini-iot-development-kit
