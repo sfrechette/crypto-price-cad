@@ -141,22 +141,22 @@ displayAsset(asset)
 
 ```mermaid
 flowchart TD
-    A[Program Start] --> B[setup()]
+    A[Program Start] --> B[setup]
     B --> C[Initialize M5StickC]
     B --> D[Connect WiFi]
     B --> E[Setup NTP Time]
     B --> F[Initial Data Fetch]
-    F --> G[loop()]
+    F --> G[loop]
     
     G --> H{Button Pressed?}
-    H -->|Yes| I[cycleBrightness()]
+    H -->|Yes| I[cycleBrightness]
     I --> G
     H -->|No| J{Time for API Update?}
     
-    J -->|Yes| K[fetchAndUpdateData()]
-    K --> L[fetchCryptoData()]
+    J -->|Yes| K[fetchAndUpdateData]
+    K --> L[fetchCryptoData]
     K --> M{Market Open?}
-    M -->|Yes| N[fetchStockData()]
+    M -->|Yes| N[fetchStockData]
     M -->|No| O[Skip Stock Data]
     N --> P[Display Update]
     O --> P
@@ -164,13 +164,13 @@ flowchart TD
     
     J -->|No| Q{Time for Display Switch?}
     Q -->|Yes| R[Switch Asset Index]
-    R --> S[displayAsset()]
+    R --> S[displayAsset]
     Q -->|No| S
     
     S --> T[Draw Icon]
     S --> U[Draw Text]
     S --> V[Draw Price Arrow]
-    V --> W[delay(100ms)]
+    V --> W[delay 100ms]
     W --> G
     
     style A fill:#ff9999
