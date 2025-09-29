@@ -211,7 +211,7 @@ flowchart TD
 - `CryptoDisplay::displayPriceArrow()` - Price movement indicators
 - `CryptoDisplay::formatPrice()` - Price formatting with commas
 
-### 🔧 Utility Functions
+### Utility Functions
 
 - `setupTime()` - NTP synchronization
 - `cycleBrightness()` - Brightness control
@@ -239,7 +239,7 @@ flowchart TD
 - **Battery Optimization:** Zero unnecessary API calls during off-hours
 - **Timezone Accuracy:** Proper Eastern Time handling for all market operations
 
-## ⚡ Performance Optimizations
+## Performance Optimizations
 
 ### Battery Life
 
