@@ -180,40 +180,42 @@ bool fetchAndUpdateData() {
     Serial.printf("Failed to fetch crypto data: %s\n", apiClient.getLastError());
   }
   
-  // Fetch stock data (MSFT - index 3) with price tracking - only during market hours
-  if (isMarketOpen()) {
-    AssetData tempStock = assets[3]; // Save current state
-    if (apiClient.fetchStockData(assets[3])) {
-      // Track price movement for stock
-      if (!tempStock.firstUpdate) {
-        assets[3].priceIncreased = (assets[3].price > tempStock.price);
-      }
-      assets[3].previousPrice = tempStock.price;
-      assets[3].firstUpdate = false;
-      
-      Serial.printf("Successfully fetched stock data: %s: $%.2f %s", 
-                    assets[3].symbol, assets[3].price, assets[3].currency);
-      if (!tempStock.firstUpdate) {
-        Serial.printf(" (%s)", assets[3].priceIncreased ? "UP" : "DOWN");
-      }
-      Serial.println();
-      stockSuccess = true;
-    } else {
-      Serial.printf("Failed to fetch stock data: %s\n", apiClient.getLastError());
+  // Fetch stock data (MSFT - index 3) with price tracking - always fetch, but show market status
+  AssetData tempStock = assets[3]; // Save current state
+  if (apiClient.fetchStockData(assets[3])) {
+    // Track price movement for stock
+    if (!tempStock.firstUpdate) {
+      assets[3].priceIncreased = (assets[3].price > tempStock.price);
     }
+    assets[3].previousPrice = tempStock.price;
+    assets[3].firstUpdate = false;
+    
+    // Update status based on market hours
+    if (isMarketOpen()) {
+      // Market is open - keep the API timestamp
+      Serial.printf("Successfully fetched stock data (market open): %s: $%.2f %s", 
+                    assets[3].symbol, assets[3].price, assets[3].currency);
+    } else {
+      // Market is closed - show last price but with "Market Closed" status
+      assets[3].lastUpdated = "Market Closed";
+      Serial.printf("Successfully fetched stock data (market closed): %s: $%.2f %s", 
+                    assets[3].symbol, assets[3].price, assets[3].currency);
+    }
+    
+    if (!tempStock.firstUpdate) {
+      Serial.printf(" (%s)", assets[3].priceIncreased ? "UP" : "DOWN");
+    }
+    Serial.println();
+    stockSuccess = true;
   } else {
-    // Market is closed - preserve last price but update status
+    Serial.printf("Failed to fetch stock data: %s\n", apiClient.getLastError());
+    // If we have existing price data, preserve it
     if (assets[3].price > 0.0) {
-      // Keep existing price and arrow, just update timestamp to show market is closed
-      assets[3].lastUpdated = "Market Closed";
-      Serial.printf("Market closed - displaying last known price: %s: $%.2f %s\n", 
+      assets[3].lastUpdated = "Update Failed";
+      Serial.printf("Using cached stock price: %s: $%.2f %s\n", 
                     assets[3].symbol, assets[3].price, assets[3].currency);
-    } else {
-      // No price data yet - show market closed message
-      assets[3].lastUpdated = "Market Closed";
-      Serial.println("Market closed - no price data available yet");
+      stockSuccess = true; // Don't treat this as a complete failure if we have cached data
     }
-    stockSuccess = true; // Don't treat this as a failure
   }
   
   // Return true if at least one API call succeeded

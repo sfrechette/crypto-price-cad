@@ -5,7 +5,7 @@ Features intelligent market hours detection, price movement indicators, and cust
 
 ![M5StickC Plus Display](https://github.com/sfrechette/crypto-price-cad/blob/main/crypto-price-cad.jpeg)
 
-## 🚀 Features
+## Features
 
 - **Multi-Asset Display:** BTC, ETH, XRP (CAD) + MSFT Stock (USD)
 - **Smart Market Hours:** Stock API only fetches during trading hours (9:05 AM - 4:05 PM ET)
@@ -18,13 +18,13 @@ Features intelligent market hours detection, price movement indicators, and cust
   last known prices
 - **Professional Display:** Centered icons, dynamic positioning, smooth transitions
 
-## 📋 Hardware Requirements
+## Hardware Requirements
 
 - **M5StickC Plus ESP32-PICO Mini IoT Development Kit**
   - [Purchase Link][m5stick-purchase]
   - [GitHub Repository](https://github.com/m5stack/M5StickC-Plus)
 
-## 🔑 API Requirements
+## API Requirements
 
 ### CoinMarketCap API (Cryptocurrency Data)
 
@@ -36,7 +36,7 @@ Features intelligent market hours detection, price movement indicators, and cust
 - Create account at [Financial Modeling Prep](https://financialmodelingprep.com/)
 - Free tier available
 
-## ⚙️ Installation & Setup
+## Installation & Setup
 
 1. **Clone Repository:**
 
@@ -58,7 +58,7 @@ Features intelligent market hours detection, price movement indicators, and cust
    pio run --target upload
    ```
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 ### Project Structure
 
@@ -76,9 +76,9 @@ crypto-price-cad/
 └── README.md                 # This file
 ```
 
-## 🔄 Code Execution Flow
+## Code Execution Flow
 
-### 📋 Startup Sequence (setup())
+### Startup Sequence (setup())
 
 ```
 Arduino Framework → main() → setup()
@@ -93,7 +93,7 @@ Arduino Framework → main() → setup()
 └── 9. Initialize timers              # Setup update intervals
 ```
 
-### 🔄 Main Loop (loop()) - Repeats every 100ms
+### Main Loop (loop()) - Repeats every 100ms
 
 ```
 loop() [Continuous Execution]
@@ -116,7 +116,7 @@ loop() [Continuous Execution]
 └── delay(100ms)                      # CPU throttling
 ```
 
-### 🌐 API Data Flow
+### API Data Flow
 
 ```
 fetchAndUpdateData()
@@ -132,7 +132,7 @@ fetchAndUpdateData()
     └── Set "Market Closed" status & preserve last price (if closed)
 ```
 
-### 🖥️ Display Rendering Flow
+### Display Rendering Flow
 
 ```
 displayAsset(asset)
@@ -150,7 +150,7 @@ displayAsset(asset)
     └── Prevent screen flashing
 ```
 
-## 🎨 Visual Flow Diagram
+## Visual Flow Diagram
 
 ```mermaid
 flowchart TD
@@ -194,9 +194,9 @@ flowchart TD
 
 *Copy the above Mermaid code to [mermaid.live](https://mermaid.live) for an interactive diagram*
 
-## 📊 Key Function Groups
+## Key Function Groups
 
-### 🌐 API & Network Functions
+### API & Network Functions
 
 - `APIClient::connectWiFi()` - WiFi connection with timeout
 - `APIClient::fetchCryptoData()` - CoinMarketCap API calls
@@ -204,7 +204,7 @@ flowchart TD
 - `APIClient::parseJsonResponse()` - JSON data parsing
 - `isMarketOpen()` - Eastern Time market hours detection with EST/EDT auto-switching
 
-### 🖥️ Display Functions
+### Display Functions
 
 - `CryptoDisplay::displayAsset()` - Main rendering function
 - `CryptoDisplay::displayIcon()` - Asset icon rendering
@@ -217,7 +217,7 @@ flowchart TD
 - `cycleBrightness()` - Brightness control
 - `fetchAndUpdateData()` - Main update coordinator
 
-## 🆕 Latest Features & Improvements
+## Latest Features & Improvements
 
 ### **Eastern Time Zone Support (v2.1)**
 
@@ -260,7 +260,7 @@ flowchart TD
 - **Static buffers** for timestamp conversion
 - **Efficient string handling** to prevent memory fragmentation
 
-## 🎯 Configuration Options
+## Configuration Options
 
 ### Update Intervals (config.h)
 
@@ -284,7 +284,7 @@ int marketCloseMinutes = 16 * 60 + 5;  // 4:05 PM ET
 // Timezone: EST/EDT auto-switching via configTime(-5 * 3600, 3600, ...)
 ```
 
-## 🛠️ Development Tools
+## Development Tools
 
 ### Code Analysis Tools
 
@@ -306,7 +306,7 @@ pio run -e debug
 pio run --target upload && pio device monitor
 ```
 
-## 📈 Monitoring & Logs
+## Monitoring & Logs
 
 ### Serial Output Examples
 
@@ -339,7 +339,7 @@ Current time: 10:30 ET, Market CLOSED
 Market closed - no price data available yet
 ```
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -358,11 +358,11 @@ Market closed - no price data available yet
 3. Verify API responses in serial output
 4. Test with minimal configuration
 
-## 📝 License
+## License
 
 This project is open source. See the LICENSE file for details.
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -370,7 +370,7 @@ This project is open source. See the LICENSE file for details.
 4. Add tests if applicable
 5. Submit a pull request
 
-## 📞 Support
+## Support
 
 - **Hardware Issues**: [M5Stack Community](https://community.m5stack.com/)
 - **API Issues**: Check respective API documentation
