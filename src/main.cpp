@@ -1,5 +1,5 @@
 /* 
- * Cryptocurrency & Stock Price Display for M5StickC Plus
+ * Cryptocurrency & Stock Price Display for M5StickC Plus2
  * Author: Stéphane Fréchette
  * Version: 2.1 (With MSFT Stock)
  * 
@@ -10,7 +10,7 @@
  * - Modular, maintainable code structure
  * - Proper error handling and recovery
  * - Optimized performance and memory usage
- * - Works with M5StickC Plus (ESP32-PICO) via M5Unified library
+ * - Works with M5StickC Plus2 (ESP32-PICO-V3-02) via M5Unified library
  */
 
 #include <Arduino.h>
@@ -56,9 +56,9 @@ void setupTime();
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n=== Cryptocurrency Price Display v2.1 (M5StickC Plus) ===");
+  Serial.println("\n=== Cryptocurrency Price Display v2.1 (M5StickC Plus2) ===");
 
-  // Initialize M5StickC Plus
+  // Initialize M5StickC Plus2
   M5.begin();
   display.begin();
   

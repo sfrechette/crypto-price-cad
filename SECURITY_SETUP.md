@@ -43,7 +43,7 @@ src/secrets.h
 main_original_backup.cpp
 ```
 
-## 🔑 API Key Setup
+## API Key Setup
 
 ### CoinMarketCap API (Cryptocurrency Data)
 
@@ -64,7 +64,7 @@ main_original_backup.cpp
 **API Usage:** Fetches MSFT stock price in USD during market hours only
 (9:05 AM - 4:05 PM ET)
 
-## 🕐 Market Hours Intelligence
+## Market Hours Intelligence
 
 The system automatically:
 
@@ -75,7 +75,7 @@ The system automatically:
 - **Price Persistence:** Last known stock price preserved until next
   trading day
 
-## 🔒 Security Best Practices
+## Security Best Practices
 
 ### ✅ DO
 
@@ -92,7 +92,7 @@ The system automatically:
 - **Use production keys in development** - Use separate keys if possible
 - **Ignore rate limits** - Respect API quotas to avoid blocking
 
-## 🚨 If You Accidentally Commit Secrets
+## If You Accidentally Commit Secrets
 
 ### Immediate Actions
 
@@ -109,7 +109,7 @@ The system automatically:
 4. **Force push** to remote (if applicable)
 5. **Update secrets.h** with new keys
 
-## 📊 API Usage Monitoring
+## API Usage Monitoring
 
 ### Expected Usage (Per Day)
 
@@ -125,14 +125,14 @@ The system automatically:
 - **Error Handling:** Graceful degradation on API failures
 - **Caching:** Displays last known prices during outages
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
 #### "WiFi Connection Failed"
 
 - Check SSID and password spelling
-- Ensure 2.4GHz network (M5StickC Plus limitation)
+- Ensure 2.4GHz network (M5StickC Plus2 limitation)
 - Verify network allows IoT devices
 
 #### "API Errors"
@@ -151,7 +151,7 @@ The system automatically:
 - Normal behavior outside market hours
 - Check if current time is 9:05 AM - 4:05 PM ET, Monday-Friday
 
-## 📱 Device Security
+## Device Security
 
 ### Physical Security
 
@@ -165,7 +165,7 @@ The system automatically:
 - **Firewall rules** - Restrict unnecessary outbound connections
 - **Regular updates** - Keep firmware current
 
-## 🔄 Maintenance
+## Maintenance
 
 ### Monthly Tasks
 
@@ -179,7 +179,7 @@ The system automatically:
 - **Rotate API keys** - Generate new keys
 - **Backup configuration** - Save working secrets template
 
-## 📞 Support
+## Support
 
 ### API Issues
 
@@ -192,5 +192,3 @@ The system automatically:
 - **GitHub Issues:** Create issue in this repository
 
 ---
-
-**⚠️ Remember: Security is your responsibility. Keep your credentials safe!**

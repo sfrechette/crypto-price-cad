@@ -1,9 +1,9 @@
-# Crypto & Stock Price Display for M5StickC Plus
+# Crypto & Stock Price Display for M5StickC Plus2
 
-A comprehensive cryptocurrency and stock price ticker that displays real-time prices on the M5StickC Plus.
+A comprehensive cryptocurrency and stock price ticker that displays real-time prices on the M5StickC Plus2.
 Features intelligent market hours detection, price movement indicators, and customizable brightness control.
 
-![M5StickC Plus Display](https://github.com/sfrechette/crypto-price-cad/blob/main/crypto-price-cad.jpeg)
+![M5StickC Plus2 Display](https://github.com/sfrechette/crypto-price-cad/blob/main/crypto-price-cad.jpeg)
 
 ## Features
 
@@ -20,9 +20,10 @@ Features intelligent market hours detection, price movement indicators, and cust
 
 ## Hardware Requirements
 
-- **M5StickC Plus ESP32-PICO Mini IoT Development Kit**
+- **M5StickC Plus2 ESP32-PICO-V3-02 Mini IoT Development Kit**
   - [Purchase Link][m5stick-purchase]
-  - [GitHub Repository](https://github.com/m5stack/M5StickC-Plus)
+  - Chip: ESP32-PICO-V3-02 SiP (8MB Flash, 2MB PSRAM)
+  - Display: 1.14" TFT LCD
 
 ## API Requirements
 
@@ -62,7 +63,7 @@ Features intelligent market hours detection, price movement indicators, and cust
 
 ### Project Structure
 
-```
+```text
 crypto-price-cad/
 ├── src/
 │   ├── main.cpp              # Main application logic & setup
@@ -80,22 +81,22 @@ crypto-price-cad/
 
 ### Startup Sequence (setup())
 
-```
+```text
 Arduino Framework → main() → setup()
 ├── 1. Serial.begin(115200)           # Debug output
-├── 2. M5.begin()                     # Initialize M5StickC Plus
+├── 2. M5.begin()                     # Initialize M5StickC Plus2
 ├── 3. display.begin()                # Setup display settings
-├── 4. Set brightness (60% default)   # AXP192 brightness control
-├── 5. apiClient.scanNetworks()       # WiFi network scan
+├── 4. Set brightness (60% default)   # M5Unified API brightness control
+├── 5. apiClient.scanNetworks()       # WiFi network scan (optional, disabled by default)
 ├── 6. apiClient.connectWiFi()        # Connect to WiFi
 ├── 7. setupTime()                    # NTP time sync (Eastern Time)
 ├── 8. fetchAndUpdateData()           # Initial data fetch
 └── 9. Initialize timers              # Setup update intervals
 ```
 
-### Main Loop (loop()) - Repeats every 100ms
+### Main Loop (loop()) - Repeats every 50ms
 
-```
+```text
 loop() [Continuous Execution]
 ├── M5.update()                       # Check button presses
 ├── Button A pressed?                 # Brightness control
@@ -106,19 +107,19 @@ loop() [Continuous Execution]
 │       └── isMarketOpen()?           # Market hours check
 │           ├── fetchStockData()      # Fetch if market open
 │           └── Skip if market closed # Save API calls & battery
-├── 3 seconds passed?                 # Display rotation
+├── 10 seconds passed?                # Display rotation
 │   └── Switch currentAssetIndex      # BTC→ETH→XRP→MSFT
 ├── displayAsset()                    # Draw current asset
 │   ├── Calculate positioning         # Dynamic centering
 │   ├── displayIcon()                 # Draw asset icon
 │   ├── Draw asset name & price       # Text rendering
 │   └── displayPriceArrow()           # Price movement indicator
-└── delay(100ms)                      # CPU throttling
+└── delay(50ms)                       # CPU throttling (responsive button presses)
 ```
 
 ### API Data Flow
 
-```
+```text
 fetchAndUpdateData()
 ├── Crypto API Flow (24/7):
 │   ├── HTTPSClient → api.coinmarketcap.com
@@ -134,7 +135,7 @@ fetchAndUpdateData()
 
 ### Display Rendering Flow
 
-```
+```text
 displayAsset(asset)
 ├── Calculate Layout:
 │   ├── Icon position (centered with text)
@@ -219,6 +220,14 @@ flowchart TD
 
 ## Latest Features & Improvements
 
+### **Performance Optimizations (v2.1)**
+
+- **50% Faster Button Response:** Loop delay reduced from 100ms to 50ms
+- **2 Seconds Faster Startup:** WiFi network scan disabled by default (enable if needed for diagnostics)
+- **Memory Optimization:** Constants moved to flash memory, eliminated unnecessary data copying
+- **M5Unified Library:** Universal M5Stack library for better device compatibility
+- **Cleaner Code:** Price tracking centralized in API client layer
+
 ### **Eastern Time Zone Support (v2.1)**
 
 - **Automatic EST/EDT Switching:** Uses `configTime(-5 * 3600, 3600, ...)` for proper US Eastern Time
@@ -246,7 +255,8 @@ flowchart TD
 - **5-minute API intervals** instead of continuous fetching
 - **Market hours detection** prevents unnecessary stock API calls
 - **Partial screen updates** to minimize display power consumption
-- **100ms loop delay** to reduce CPU usage
+- **50ms loop delay** balances CPU usage with responsive button control
+- **Optional WiFi scan** disabled by default to speed up startup (~2 seconds saved)
 
 ### API Efficiency
 
@@ -259,21 +269,24 @@ flowchart TD
 - **PROGMEM storage** for icons (saves RAM)
 - **Static buffers** for timestamp conversion
 - **Efficient string handling** to prevent memory fragmentation
+- **Constexpr constants** stored in flash memory instead of RAM
+- **Direct data updates** eliminates unnecessary array copying
 
 ## Configuration Options
 
 ### Update Intervals (config.h)
 
 ```cpp
-#define API_UPDATE_INTERVAL (5 * 60 * 1000)    // 5 minutes
-#define DISPLAY_DURATION (3 * 1000)            // 3 seconds per asset
+#define API_UPDATE_INTERVAL 300000    // 5 minutes
+#define DISPLAY_DURATION 10000        // 10 seconds per asset
 ```
 
 ### Brightness Levels (main.cpp)
 
 ```cpp
-int brightnessLevels[] = {20, 40, 60, 80, 100}; // 5 levels
-int currentBrightnessIndex = 2;                  // Default: 60%
+constexpr uint8_t BRIGHTNESS_LEVELS[] = {51, 102, 153, 204, 255}; // 5 levels: 20-100%
+uint8_t currentBrightnessIndex = 2;                                 // Default: 60%
+// Using M5Unified API: M5.Display.setBrightness()
 ```
 
 ### Market Hours (main.cpp)
@@ -312,8 +325,8 @@ pio run --target upload && pio device monitor
 
 **During Market Hours:**
 
-```
-=== Cryptocurrency Price Display v2.0 ===
+```text
+=== Cryptocurrency Price Display v2.1 (M5StickC Plus2) ===
 WiFi connected to: YourNetwork
 Time synchronized: 2024-09-25 14:30:45 ET
 Current time: 14:30 ET, Market OPEN
@@ -327,14 +340,14 @@ Brightness changed to: 80/100 (level 4)
 
 **After Market Close:**
 
-```
+```text
 Current time: 16:06 ET, Market CLOSED
 Market closed - displaying last known price: MSFT: $425.67 USD
 ```
 
 **Weekend/Before First Fetch:**
 
-```
+```text
 Current time: 10:30 ET, Market CLOSED
 Market closed - no price data available yet
 ```
@@ -346,7 +359,7 @@ Market closed - no price data available yet
 1. **WiFi Connection Failed** - Check credentials in `secrets.h`
 2. **API Errors** - Verify API keys and quotas
 3. **Time Sync Issues** - Check NTP server accessibility
-4. **Display Issues** - Verify M5StickC Plus connection
+4. **Display Issues** - Verify M5StickC Plus2 connection
 5. **Stock API Fetching at Wrong Times** - Ensure timezone is properly configured (should see "ET" in logs, not "EDT")
 6. **MSFT Showing Blank/Zero** - Check if "Market Closed" message appears; this is normal behavior
 7. **Price Arrows Wrong Color** - Up arrows should be green, down arrows red; display may interpret colors differently
@@ -379,4 +392,4 @@ This project is open source. See the LICENSE file for details.
 ---
 
 <!-- Reference Links -->
-[m5stick-purchase]: https://shop.m5stack.com/products/m5stickc-plus-esp32-pico-mini-iot-development-kit
+[m5stick-purchase]: https://shop.m5stack.com/products/m5stickc-plus2-esp32-mini-iot-development-kit
