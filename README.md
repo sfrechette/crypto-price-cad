@@ -378,7 +378,5 @@ This project is open source. See the LICENSE file for details.
 
 ---
 
-**Built with ❤️ for the maker community**
-
 <!-- Reference Links -->
 [m5stick-purchase]: https://shop.m5stack.com/products/m5stickc-plus-esp32-pico-mini-iot-development-kit

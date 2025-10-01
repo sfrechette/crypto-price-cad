@@ -6,7 +6,7 @@ CryptoDisplay::CryptoDisplay() {
 
 void CryptoDisplay::begin() {
   M5.Lcd.setRotation(3);
-  M5.Axp.ScreenBreath(32);
+  // Brightness is controlled via GPIO27 PWM in main.cpp (M5StickC Plus2)
   M5.Lcd.fillScreen(COLOR_BACKGROUND);
   setupDisplaySettings();
 }

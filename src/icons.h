@@ -2,7 +2,7 @@
 #define ICONS_H
 
 #include <Arduino.h>
-#include <M5StickCPlus.h>
+#include <M5Unified.h>
 
 // btc icon (24x24) - White logo on transparent background
 const uint16_t btc_icon[576] PROGMEM = {

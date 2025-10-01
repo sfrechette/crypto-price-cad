@@ -1,7 +1,7 @@
 #ifndef CRYPTO_DISPLAY_H
 #define CRYPTO_DISPLAY_H
 
-#include <M5StickCPlus.h>
+#include <M5Unified.h>
 #include "config.h"
 
 // Structure to hold cryptocurrency and stock data

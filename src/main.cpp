@@ -10,10 +10,11 @@
  * - Modular, maintainable code structure
  * - Proper error handling and recovery
  * - Optimized performance and memory usage
+ * - Works with M5StickC Plus (ESP32-PICO) via M5Unified library
  */
 
 #include <Arduino.h>
-#include <M5StickCPlus.h>
+#include <M5Unified.h>
 #include <time.h>
 #include "config.h"
 #include "crypto_display.h"
@@ -39,11 +40,13 @@ unsigned long lastDisplaySwitch = 0;
 int currentAssetIndex = 0;
 bool dataLoaded = false;
 
-// Brightness control variables - Simple AXP192 control
-int brightnessLevels[] = {20, 40, 60, 80, 100}; // 4 levels: lowest to maximum
-int currentBrightnessIndex = 2; // Start at lowest (index 0, value 10)
+// Brightness control variables - M5Unified API (works on all M5 devices)
+constexpr uint8_t BRIGHTNESS_LEVELS[] = {51, 102, 153, 204, 255}; // 5 levels: 20%, 40%, 60%, 80%, 100%
+constexpr uint8_t BRIGHTNESS_LEVEL_COUNT = sizeof(BRIGHTNESS_LEVELS) / sizeof(BRIGHTNESS_LEVELS[0]);
+constexpr uint8_t BRIGHTNESS_MAX = 255;
+uint8_t currentBrightnessIndex = 2; // Start at medium (60%)
 unsigned long lastButtonPress = 0;
-const unsigned long BUTTON_DEBOUNCE_MS = 200; // Debounce delay
+constexpr unsigned long BUTTON_DEBOUNCE_MS = 200; // Debounce delay
 
 // Function declarations
 bool fetchAndUpdateData();
@@ -53,21 +56,23 @@ void setupTime();
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n=== Cryptocurrency Price Display v2.0 ===");
+  Serial.println("\n=== Cryptocurrency Price Display v2.1 (M5StickC Plus) ===");
 
   // Initialize M5StickC Plus
   M5.begin();
   display.begin();
   
-  // Set initial brightness (lowest) - Using AXP192 method
-  M5.Axp.ScreenBreath(brightnessLevels[currentBrightnessIndex]);
-  Serial.printf("Initial brightness set to: %d/100\n", brightnessLevels[currentBrightnessIndex]);
+  // Set initial brightness - M5Unified API
+  M5.Display.setBrightness(BRIGHTNESS_LEVELS[currentBrightnessIndex]);
+  Serial.printf("Initial brightness set to: %d/255 (%d%%)\n", 
+                BRIGHTNESS_LEVELS[currentBrightnessIndex], 
+                (BRIGHTNESS_LEVELS[currentBrightnessIndex] * 100) / BRIGHTNESS_MAX);
   
   // Show WiFi connection status
   display.displayWiFiStatus("Connecting...");
   
-  // First, scan for available networks for diagnostics
-  apiClient.scanNetworks();
+  // Optional: Scan for available networks for diagnostics (comment out to speed up startup)
+  // apiClient.scanNetworks();
   
   // Connect to WiFi with timeout
   if (!apiClient.connectWiFi(WIFI_SSID, WIFI_PASSWORD, WIFI_CONNECT_TIMEOUT)) {
@@ -135,8 +140,8 @@ void loop() {
     display.displayAsset(assets[currentAssetIndex]);
   }
   
-  // Small delay to prevent excessive CPU usage
-  delay(100);
+  // Small delay to prevent excessive CPU usage (50ms = responsive button presses)
+  delay(50);
 }
 
 bool fetchAndUpdateData() {
@@ -150,25 +155,12 @@ bool fetchAndUpdateData() {
   bool cryptoSuccess = false;
   bool stockSuccess = false;
   
-  // Fetch cryptocurrency data (first 3 assets)
-  CryptoData cryptos[3];
-  for (int i = 0; i < 3; i++) {
-    cryptos[i] = assets[i]; // Copy crypto assets
-  }
-  
-  if (apiClient.fetchCryptoData(cryptos, 3)) {
+  // Fetch cryptocurrency data (first 3 assets) - pass directly, no copying needed
+  constexpr int cryptoCount = 3;
+  if (apiClient.fetchCryptoData(assets, cryptoCount)) {
     Serial.println("Successfully fetched cryptocurrency data:");
-    // Copy back to assets array with price tracking
-    for (int i = 0; i < 3; i++) {
-      // Track price movement
-      if (!assets[i].firstUpdate) {
-        assets[i].priceIncreased = (cryptos[i].price > assets[i].price);
-      }
-      assets[i].previousPrice = assets[i].price;
-      assets[i].price = cryptos[i].price;
-      assets[i].lastUpdated = cryptos[i].lastUpdated;
-      assets[i].firstUpdate = false;
-      
+    // Update price tracking for each crypto asset
+    for (int i = 0; i < cryptoCount; i++) {
       Serial.printf("  %s: $%.2f %s", assets[i].symbol, assets[i].price, assets[i].currency);
       if (!assets[i].firstUpdate) {
         Serial.printf(" (%s)", assets[i].priceIncreased ? "UP" : "DOWN");
@@ -180,16 +172,8 @@ bool fetchAndUpdateData() {
     Serial.printf("Failed to fetch crypto data: %s\n", apiClient.getLastError());
   }
   
-  // Fetch stock data (MSFT - index 3) with price tracking - always fetch, but show market status
-  AssetData tempStock = assets[3]; // Save current state
+  // Fetch stock data (MSFT - index 3) - price tracking handled in API client
   if (apiClient.fetchStockData(assets[3])) {
-    // Track price movement for stock
-    if (!tempStock.firstUpdate) {
-      assets[3].priceIncreased = (assets[3].price > tempStock.price);
-    }
-    assets[3].previousPrice = tempStock.price;
-    assets[3].firstUpdate = false;
-    
     // Update status based on market hours
     if (isMarketOpen()) {
       // Market is open - keep the API timestamp
@@ -202,7 +186,8 @@ bool fetchAndUpdateData() {
                     assets[3].symbol, assets[3].price, assets[3].currency);
     }
     
-    if (!tempStock.firstUpdate) {
+    // Show price movement indicator
+    if (!assets[3].firstUpdate) {
       Serial.printf(" (%s)", assets[3].priceIncreased ? "UP" : "DOWN");
     }
     Serial.println();
@@ -225,14 +210,15 @@ bool fetchAndUpdateData() {
 // Cycle through brightness levels when button A is pressed
 void cycleBrightness() {
   // Move to next brightness level (cycle back to 0 if at end)
-  currentBrightnessIndex = (currentBrightnessIndex + 1) % (sizeof(brightnessLevels) / sizeof(brightnessLevels[0]));
+  currentBrightnessIndex = (currentBrightnessIndex + 1) % BRIGHTNESS_LEVEL_COUNT;
   
-  // Apply new brightness using AXP192 method
-  M5.Axp.ScreenBreath(brightnessLevels[currentBrightnessIndex]);
+  // Apply new brightness using M5Unified API (works for all M5 devices)
+  M5.Display.setBrightness(BRIGHTNESS_LEVELS[currentBrightnessIndex]);
   
   // Show brightness level briefly
-  Serial.printf("Brightness changed to: %d/100 (level %d)\n", 
-                brightnessLevels[currentBrightnessIndex], currentBrightnessIndex + 1);
+  const uint8_t percentBrightness = (BRIGHTNESS_LEVELS[currentBrightnessIndex] * 100) / BRIGHTNESS_MAX;
+  Serial.printf("Brightness changed to: %d/255 (%d%%, level %d)\n", 
+                BRIGHTNESS_LEVELS[currentBrightnessIndex], percentBrightness, currentBrightnessIndex + 1);
   
   // Optional: Show brightness on screen briefly (uncomment if desired)
   /*

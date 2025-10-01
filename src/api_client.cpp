@@ -135,8 +135,8 @@ bool APIClient::parseJsonResponse(const String& payload, CryptoData cryptos[], i
   Serial.println(payload.substring(0, 500));
   Serial.println("=========================");
   
-  // Use larger buffer for CoinMarketCap API response
-  DynamicJsonDocument doc(32768);  // Increased from smaller size
+  // Use larger buffer for CoinMarketCap API response (32KB for multi-crypto JSON)
+  DynamicJsonDocument doc(32768);
   
   DeserializationError error = deserializeJson(doc, payload);
   if (error) {
@@ -178,9 +178,19 @@ bool APIClient::parseJsonResponse(const String& payload, CryptoData cryptos[], i
       return false;
     }
     
-    // Extract the data
-    cryptos[i].price = doc["data"][symbol][0]["quote"]["CAD"]["price"];
+    // Extract the new price and update tracking
+    float newPrice = doc["data"][symbol][0]["quote"]["CAD"]["price"];
+    
+    // Track price movement (only if not first update)
+    if (!cryptos[i].firstUpdate && newPrice != cryptos[i].price) {
+      cryptos[i].priceIncreased = (newPrice > cryptos[i].price);
+      cryptos[i].previousPrice = cryptos[i].price;
+    }
+    
+    // Update price and timestamp
+    cryptos[i].price = newPrice;
     cryptos[i].lastUpdated = doc["data"][symbol][0]["quote"]["CAD"]["last_updated"];
+    cryptos[i].firstUpdate = false;
     
     Serial.printf("%s price: %.2f CAD\n", symbol, cryptos[i].price);
   }
@@ -239,7 +249,7 @@ bool APIClient::parseStockJsonResponse(const String& payload, AssetData& stock) 
   Serial.println(payload.substring(0, 200));
   Serial.println("================================");
   
-  DynamicJsonDocument doc(8192); // Buffer for single stock response
+  DynamicJsonDocument doc(8192); // 8KB buffer sufficient for single stock response
   DeserializationError error = deserializeJson(doc, payload);
   
   if (error) {
@@ -263,11 +273,21 @@ bool APIClient::parseStockJsonResponse(const String& payload, AssetData& stock) 
     return false;
   }
   
-  // Extract stock data
-  stock.price = stockObj["price"];
+  // Extract new stock price and track movement
+  float newPrice = stockObj["price"];
+  
+  // Track price movement (only if not first update)
+  if (!stock.firstUpdate && newPrice != stock.price) {
+    stock.priceIncreased = (newPrice > stock.price);
+    stock.previousPrice = stock.price;
+  }
+  
+  stock.price = newPrice;
+  stock.firstUpdate = false;
   
   // Extract timestamp and format it like crypto (ISO 8601 format)
-  static char timestampBuffer[32]; // Static buffer to persist beyond function scope
+  // NOTE: Static buffer avoids heap allocation and persists beyond function scope
+  static char timestampBuffer[32];
   
   if (stockObj.containsKey("timestamp")) {
     // FMP provides Unix timestamp, convert to ISO 8601 format like crypto
