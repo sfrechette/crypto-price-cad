@@ -44,7 +44,7 @@ bool dataLoaded = false;
 constexpr uint8_t BRIGHTNESS_LEVELS[] = {51, 102, 153, 204, 255}; // 5 levels: 20%, 40%, 60%, 80%, 100%
 constexpr uint8_t BRIGHTNESS_LEVEL_COUNT = sizeof(BRIGHTNESS_LEVELS) / sizeof(BRIGHTNESS_LEVELS[0]);
 constexpr uint8_t BRIGHTNESS_MAX = 255;
-uint8_t currentBrightnessIndex = 2; // Start at medium (60%)
+uint8_t currentBrightnessIndex = 0; // Start at lowest (20%)
 unsigned long lastButtonPress = 0;
 constexpr unsigned long BUTTON_DEBOUNCE_MS = 200; // Debounce delay
 
