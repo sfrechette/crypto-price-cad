@@ -1,11 +1,11 @@
 # Security Setup Guide
 
-## 🛡️ Protecting Your Credentials
+## Protecting Your Credentials
 
 This guide helps you securely configure the Crypto & Stock Price Display project with your
 API keys and WiFi credentials.
 
-## 📋 Quick Setup Steps
+## Quick Setup Steps
 
 ### Step 1: Create secrets.h
 
@@ -183,7 +183,7 @@ The system automatically:
 
 ### API Issues
 
-- **CoinMarketCap:** [Support Center](https://coinmarketcap.com/api/support/)
+- **CoinMarketCap:** [Documentation](https://coinmarketcap.com/api/documentation/v1/#section/Introduction)
 - **Financial Modeling Prep:** [Documentation](https://financialmodelingprep.com/developer/docs)
 
 ### Hardware Issues

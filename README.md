@@ -86,7 +86,7 @@ Arduino Framework → main() → setup()
 ├── 1. Serial.begin(115200)           # Debug output
 ├── 2. M5.begin()                     # Initialize M5StickC Plus2
 ├── 3. display.begin()                # Setup display settings
-├── 4. Set brightness (60% default)   # M5Unified API brightness control
+├── 4. Set brightness (20% default)   # M5Unified API brightness control
 ├── 5. apiClient.scanNetworks()       # WiFi network scan (optional, disabled by default)
 ├── 6. apiClient.connectWiFi()        # Connect to WiFi
 ├── 7. setupTime()                    # NTP time sync (Eastern Time)
@@ -285,7 +285,7 @@ flowchart TD
 
 ```cpp
 constexpr uint8_t BRIGHTNESS_LEVELS[] = {51, 102, 153, 204, 255}; // 5 levels: 20-100%
-uint8_t currentBrightnessIndex = 2;                                 // Default: 60%
+uint8_t currentBrightnessIndex = 0;                                 // Default: 20%
 // Using M5Unified API: M5.Display.setBrightness()
 ```
 
@@ -373,7 +373,7 @@ Market closed - no price data available yet
 
 ## License
 
-This project is open source. See the LICENSE file for details.
+This project is open source. See the [LICENSE](LICENSE)  file for details.
 
 ## Contributing
 
