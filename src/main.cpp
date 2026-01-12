@@ -1,11 +1,12 @@
 /* 
  * Cryptocurrency & Stock Price Display for M5StickC Plus2
  * Author: Stéphane Fréchette
- * Version: 2.1 (With MSFT Stock)
+ * Version: 2.2 (Home Assistant Integration)
  * 
  * Features:
  * - Displays BTC, ETH, XRP prices in CAD + MSFT stock price in USD
  * - Updates every 5 minutes from CoinMarketCap API + Financial Modeling Prep API
+ * - Home Assistant integration via MQTT with auto-discovery
  * - Unified display rotation: BTC → ETH → XRP → MSFT → (repeat)
  * - Modular, maintainable code structure
  * - Proper error handling and recovery
@@ -19,11 +20,13 @@
 #include "config.h"
 #include "crypto_display.h"
 #include "api_client.h"
+#include "mqtt_client.h"
 #include "secrets.h"
 
 // Global objects
 CryptoDisplay display;
 APIClient apiClient;
+MQTTClient mqttClient;
 
 // Asset data array (crypto + stocks) - Adjusted for proportional font widths
 AssetData assets[] = {
@@ -56,7 +59,7 @@ void setupTime();
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n=== Cryptocurrency Price Display v2.1 (M5StickC Plus2) ===");
+  Serial.println("\n=== Cryptocurrency Price Display v2.2 (M5StickC Plus2) ===");
 
   // Initialize M5StickC Plus2
   M5.begin();
@@ -88,10 +91,22 @@ void setup() {
   // Setup time synchronization with NTP
   setupTime();
   
+  // Initialize MQTT connection to Home Assistant
+  display.displayWiFiStatus("Connecting to MQTT...");
+  if (mqttClient.begin(MQTT_BROKER, MQTT_PORT, MQTT_USER, MQTT_PASSWORD)) {
+    Serial.println("MQTT connected to Home Assistant");
+    // Publish discovery configs so Home Assistant auto-creates entities
+    mqttClient.publishDiscoveryConfigs(assets, assetCount);
+  } else {
+    Serial.println("MQTT connection failed - will retry in background");
+  }
+  
   // Initial data fetch
   if (fetchAndUpdateData()) {
     dataLoaded = true;
     Serial.println("Initial data loaded successfully");
+    // Publish initial prices to Home Assistant
+    mqttClient.publishPrices(assets, assetCount);
   } else {
     display.displayError("Failed to load initial data");
     delay(3000);
@@ -103,6 +118,7 @@ void setup() {
 
 void loop() {
   M5.update(); // Handle button presses
+  mqttClient.loop(); // Maintain MQTT connection
   
   unsigned long currentTime = millis();
   
@@ -119,6 +135,8 @@ void loop() {
     if (fetchAndUpdateData()) {
       dataLoaded = true;
       Serial.println("Data updated successfully");
+      // Publish updated prices to Home Assistant via MQTT
+      mqttClient.publishPrices(assets, assetCount);
     } else {
       Serial.println("Failed to update data, using cached values");
       display.displayError("Update failed");

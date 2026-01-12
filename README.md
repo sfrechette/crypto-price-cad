@@ -1,13 +1,14 @@
 # Crypto & Stock Price Display for M5StickC Plus2
 
 A comprehensive cryptocurrency and stock price ticker that displays real-time prices on the M5StickC Plus2.
-Features intelligent market hours detection, price movement indicators, and customizable brightness control.
+Features intelligent market hours detection, price movement indicators, Home Assistant integration via MQTT, and customizable brightness control.
 
 ![M5StickC Plus2 Display](https://github.com/sfrechette/crypto-price-cad/blob/main/crypto-price-cad.jpeg)
 
 ## Features
 
 - **Multi-Asset Display:** BTC, ETH, XRP (CAD) + MSFT Stock (USD)
+- **Home Assistant Integration:** Auto-discovery via MQTT with real-time price updates
 - **Smart Market Hours:** Stock API only fetches during trading hours (9:05 AM - 4:05 PM ET)
   with automatic EST/EDT switching
 - **Price Movement Indicators:** Green up arrows ↗️ and red down arrows ↘️
@@ -25,7 +26,7 @@ Features intelligent market hours detection, price movement indicators, and cust
   - Chip: ESP32-PICO-V3-02 SiP (8MB Flash, 2MB PSRAM)
   - Display: 1.14" TFT LCD
 
-## API Requirements
+## API & Service Requirements
 
 ### CoinMarketCap API (Cryptocurrency Data)
 
@@ -37,6 +38,12 @@ Features intelligent market hours detection, price movement indicators, and cust
 - Create account at [Financial Modeling Prep](https://financialmodelingprep.com/)
 - Free tier available
 
+### MQTT Broker (Home Assistant Integration)
+
+- **Mosquitto MQTT Broker** running on Home Assistant or standalone
+- Can use Home Assistant's built-in Mosquitto add-on
+- Default port: 1883
+
 ## Installation & Setup
 
 1. **Clone Repository:**
@@ -46,18 +53,32 @@ Features intelligent market hours detection, price movement indicators, and cust
    cd crypto-price-cad
    ```
 
-2. **Configure API Keys:**
+2. **Configure API Keys & MQTT:**
 
    ```bash
    cp secrets_template.h src/secrets.h
    # Edit src/secrets.h with your credentials
    ```
 
+   Required configuration in `secrets.h`:
+   - WiFi credentials (SSID, password)
+   - CoinMarketCap API key
+   - Financial Modeling Prep API key
+   - MQTT broker IP address (your Home Assistant IP)
+   - MQTT credentials (if authentication enabled)
+
 3. **Build & Upload:**
 
    ```bash
    pio run --target upload
    ```
+
+4. **Home Assistant Setup:**
+
+   The device automatically publishes MQTT discovery configs. After upload:
+   - Sensors appear automatically under **Settings → Devices & Services → MQTT**
+   - Device name: "Crypto Price Display"
+   - Entities created: Bitcoin Price, Ethereum Price, XRP Price, Microsoft Price
 
 ## Architecture Overview
 
@@ -69,12 +90,34 @@ crypto-price-cad/
 │   ├── main.cpp              # Main application logic & setup
 │   ├── api_client.cpp/.h     # Network & API handling
 │   ├── crypto_display.cpp/.h # Display management
+│   ├── mqtt_client.cpp/.h    # Home Assistant MQTT integration
 │   ├── config.h              # Configuration constants
-│   ├── secrets.h             # API keys & WiFi credentials
+│   ├── secrets.h             # API keys, WiFi & MQTT credentials
 │   └── icons.h               # Asset icons & arrows (RGB565)
 ├── include/                  # Original PNG icons
 ├── platformio.ini            # PlatformIO configuration
+├── SECURITY_SETUP.md         # Credential security guide
 └── README.md                 # This file
+```
+
+### MQTT Topic Structure
+
+```text
+m5crypto/
+├── status                    # Device availability (online/offline)
+├── btc/state                 # Bitcoin price & trend
+├── eth/state                 # Ethereum price & trend
+├── xrp/state                 # XRP price & trend
+└── msft/state                # Microsoft stock price & trend
+```
+
+### Home Assistant Discovery Topics
+
+```text
+homeassistant/sensor/m5crypto_btc/config
+homeassistant/sensor/m5crypto_eth/config
+homeassistant/sensor/m5crypto_xrp/config
+homeassistant/sensor/m5crypto_msft/config
 ```
 
 ## Code Execution Flow
@@ -87,11 +130,13 @@ Arduino Framework → main() → setup()
 ├── 2. M5.begin()                     # Initialize M5StickC Plus2
 ├── 3. display.begin()                # Setup display settings
 ├── 4. Set brightness (20% default)   # M5Unified API brightness control
-├── 5. apiClient.scanNetworks()       # WiFi network scan (optional, disabled by default)
-├── 6. apiClient.connectWiFi()        # Connect to WiFi
-├── 7. setupTime()                    # NTP time sync (Eastern Time)
-├── 8. fetchAndUpdateData()           # Initial data fetch
-└── 9. Initialize timers              # Setup update intervals
+├── 5. apiClient.connectWiFi()        # Connect to WiFi
+├── 6. setupTime()                    # NTP time sync (Eastern Time)
+├── 7. mqttClient.begin()             # Connect to MQTT broker
+├── 8. publishDiscoveryConfigs()      # Register entities with Home Assistant
+├── 9. fetchAndUpdateData()           # Initial data fetch
+├── 10. mqttClient.publishPrices()    # Send initial prices to HA
+└── 11. Initialize timers             # Setup update intervals
 ```
 
 ### Main Loop (loop()) - Repeats every 50ms
@@ -99,14 +144,16 @@ Arduino Framework → main() → setup()
 ```text
 loop() [Continuous Execution]
 ├── M5.update()                       # Check button presses
+├── mqttClient.loop()                 # Maintain MQTT connection
 ├── Button A pressed?                 # Brightness control
 │   └── cycleBrightness()             # Cycle through 5 levels
 ├── 5 minutes passed?                 # API update check
 │   └── fetchAndUpdateData()
 │       ├── fetchCryptoData()         # Always fetch crypto (24/7)
-│       └── isMarketOpen()?           # Market hours check
-│           ├── fetchStockData()      # Fetch if market open
-│           └── Skip if market closed # Save API calls & battery
+│       ├── isMarketOpen()?           # Market hours check
+│       │   ├── fetchStockData()      # Fetch if market open
+│       │   └── Skip if market closed # Save API calls & battery
+│       └── mqttClient.publishPrices()# Send to Home Assistant
 ├── 10 seconds passed?                # Display rotation
 │   └── Switch currentAssetIndex      # BTC→ETH→XRP→MSFT
 ├── displayAsset()                    # Draw current asset
@@ -114,10 +161,10 @@ loop() [Continuous Execution]
 │   ├── displayIcon()                 # Draw asset icon
 │   ├── Draw asset name & price       # Text rendering
 │   └── displayPriceArrow()           # Price movement indicator
-└── delay(50ms)                       # CPU throttling (responsive button presses)
+└── delay(50ms)                       # CPU throttling
 ```
 
-### API Data Flow
+### API & MQTT Data Flow
 
 ```text
 fetchAndUpdateData()
@@ -125,12 +172,35 @@ fetchAndUpdateData()
 │   ├── HTTPSClient → api.coinmarketcap.com
 │   ├── JSON Response → parseCryptoJsonResponse()
 │   └── Update BTC, ETH, XRP prices
-└── Stock API Flow (Market Hours Only):
-    ├── isMarketOpen() → Check Eastern Time & weekday (EST/EDT auto)
-    ├── HTTPSClient → financialmodelingprep.com (if market open)
-    ├── JSON Response → parseStockJsonResponse() (if market open)
-    ├── Update MSFT price with timestamp conversion (if market open)
-    └── Set "Market Closed" status & preserve last price (if closed)
+├── Stock API Flow (Market Hours Only):
+│   ├── isMarketOpen() → Check Eastern Time & weekday
+│   ├── HTTPSClient → financialmodelingprep.com
+│   ├── JSON Response → parseStockJsonResponse()
+│   └── Update MSFT price with timestamp
+└── MQTT Publishing:
+    ├── mqttClient.publishPrices()
+    ├── Build JSON payload (price, trend, updated)
+    └── Publish to m5crypto/{symbol}/state
+```
+
+### MQTT Message Flow
+
+```text
+Device Startup:
+├── Connect to MQTT Broker
+├── Set Last Will: m5crypto/status → "offline"
+├── Publish: m5crypto/status → "online"
+└── Publish Discovery Configs (4 sensors)
+
+Every 5 Minutes:
+├── Fetch prices from APIs
+├── For each asset:
+│   └── Publish JSON to m5crypto/{symbol}/state
+│       {"price": 63245.67, "trend": "up", "updated": "14:30:45"}
+└── Home Assistant auto-updates entities
+
+On Disconnect:
+└── Broker publishes Last Will: m5crypto/status → "offline"
 ```
 
 ### Display Rendering Flow
@@ -159,41 +229,105 @@ flowchart TD
     B --> C[Initialize M5StickC]
     B --> D[Connect WiFi]
     B --> E[Setup NTP Time]
-    B --> F[Initial Data Fetch]
-    F --> G[loop]
+    B --> F[Connect MQTT Broker]
+    F --> G[Publish HA Discovery]
+    G --> H[Initial Data Fetch]
+    H --> I[Publish to MQTT]
+    I --> J[loop]
     
-    G --> H{Button Pressed?}
-    H -->|Yes| I[cycleBrightness]
-    I --> G
-    H -->|No| J{Time for API Update?}
+    J --> K{Button Pressed?}
+    K -->|Yes| L[cycleBrightness]
+    L --> J
+    K -->|No| M[mqttClient.loop]
+    M --> N{Time for API Update?}
     
-    J -->|Yes| K[fetchAndUpdateData]
-    K --> L[fetchCryptoData]
-    K --> M{Market Open?}
-    M -->|Yes| N[fetchStockData]
-    M -->|No| O[Skip Stock Data]
-    N --> P[Display Update]
-    O --> P
-    L --> P
+    N -->|Yes| O[fetchAndUpdateData]
+    O --> P[fetchCryptoData]
+    O --> Q{Market Open?}
+    Q -->|Yes| R[fetchStockData]
+    Q -->|No| S[Skip Stock API]
+    R --> T[Publish Prices to MQTT]
+    S --> T
+    P --> T
+    T --> U[Display Update]
     
-    J -->|No| Q{Time for Display Switch?}
-    Q -->|Yes| R[Switch Asset Index]
-    R --> S[displayAsset]
-    Q -->|No| S
+    N -->|No| V{Time for Display Switch?}
+    V -->|Yes| W[Switch Asset Index]
+    W --> X[displayAsset]
+    V -->|No| X
     
-    S --> T[Draw Icon]
-    S --> U[Draw Text]
-    S --> V[Draw Price Arrow]
-    V --> W[delay 100ms]
-    W --> G
+    X --> Y[Draw Icon]
+    X --> Z[Draw Text]
+    X --> AA[Draw Price Arrow]
+    AA --> AB[delay 50ms]
+    AB --> J
     
     style A fill:#ff9999
-    style G fill:#99ccff
-    style K fill:#99ff99
-    style S fill:#ffcc99
+    style J fill:#99ccff
+    style O fill:#99ff99
+    style T fill:#ffcc66
+    style X fill:#ffcc99
 ```
 
 *Copy the above Mermaid code to [mermaid.live](https://mermaid.live) for an interactive diagram*
+
+## Home Assistant Integration
+
+### Auto-Discovered Entities
+
+After device startup, the following sensors are created automatically:
+
+| Entity ID | Name | Unit | Icon |
+|-----------|------|------|------|
+| `sensor.m5crypto_btc_price` | Bitcoin Price | CAD | mdi:bitcoin |
+| `sensor.m5crypto_eth_price` | Ethereum Price | CAD | mdi:ethereum |
+| `sensor.m5crypto_xrp_price` | XRP Price | CAD | mdi:alpha-x-circle |
+| `sensor.m5crypto_msft_price` | Microsoft Price | USD | mdi:microsoft |
+
+### Sensor Attributes
+
+Each sensor includes additional attributes:
+
+- **trend**: "up", "down", or "unknown"
+- **updated**: Last update timestamp
+
+### Example Dashboard Card
+
+```yaml
+type: entities
+title: Crypto Prices
+entities:
+  - entity: sensor.m5crypto_btc_price
+    name: Bitcoin
+  - entity: sensor.m5crypto_eth_price
+    name: Ethereum
+  - entity: sensor.m5crypto_xrp_price
+    name: XRP
+  - entity: sensor.m5crypto_msft_price
+    name: Microsoft
+```
+
+### Example Automation
+
+```yaml
+automation:
+  - alias: "Notify on Bitcoin Price Change"
+    trigger:
+      - platform: state
+        entity_id: sensor.m5crypto_btc_price
+    condition:
+      - condition: template
+        value_template: "{{ trigger.to_state.attributes.trend == 'up' }}"
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Bitcoin Going Up! 📈"
+          message: "BTC is now ${{ states('sensor.m5crypto_btc_price') }} CAD"
+```
+
+### XRP Icon Note
+
+The XRP sensor uses `mdi:alpha-x-circle` since Material Design Icons don't include a native XRP logo. For the actual XRP logo, install [Simple Icons](https://github.com/vigonotion/hass-simpleicons) via HACS and change the icon to `si:xrp` in the entity settings.
 
 ## Key Function Groups
 
@@ -212,6 +346,14 @@ flowchart TD
 - `CryptoDisplay::displayPriceArrow()` - Price movement indicators
 - `CryptoDisplay::formatPrice()` - Price formatting with commas
 
+### MQTT Functions
+
+- `MQTTClient::begin()` - Connect to MQTT broker with LWT
+- `MQTTClient::publishDiscoveryConfigs()` - Register entities with Home Assistant
+- `MQTTClient::publishPrices()` - Send current prices to all topics
+- `MQTTClient::publishAvailability()` - Device online/offline status
+- `MQTTClient::loop()` - Maintain connection (call in main loop)
+
 ### Utility Functions
 
 - `setupTime()` - NTP synchronization
@@ -220,33 +362,33 @@ flowchart TD
 
 ## Latest Features & Improvements
 
+### **Home Assistant Integration (v2.2)**
+
+- **MQTT Auto-Discovery:** Entities automatically appear in Home Assistant
+- **Real-Time Updates:** Prices published every 5 minutes via MQTT
+- **Device Grouping:** All sensors grouped under "Crypto Price Display" device
+- **Availability Tracking:** Online/offline status with Last Will and Testament
+- **Trend Attributes:** Price direction (up/down) available for automations
+
 ### **Performance Optimizations (v2.1)**
 
 - **50% Faster Button Response:** Loop delay reduced from 100ms to 50ms
-- **2 Seconds Faster Startup:** WiFi network scan disabled by default (enable if needed for diagnostics)
-- **Memory Optimization:** Constants moved to flash memory, eliminated unnecessary data copying
+- **2 Seconds Faster Startup:** WiFi network scan disabled by default
+- **Memory Optimization:** Constants moved to flash memory
 - **M5Unified Library:** Universal M5Stack library for better device compatibility
 - **Cleaner Code:** Price tracking centralized in API client layer
 
 ### **Eastern Time Zone Support (v2.1)**
 
-- **Automatic EST/EDT Switching:** Uses `configTime(-5 * 3600, 3600, ...)` for proper US Eastern Time
-- **No More Midnight API Calls:** Fixed timezone bug that caused stock fetching at 11:30 PM
-- **Accurate Market Hours:** 9:05 AM - 4:05 PM ET with automatic daylight saving adjustments
+- **Automatic EST/EDT Switching:** Proper US Eastern Time handling
+- **No More Midnight API Calls:** Fixed timezone bug
+- **Accurate Market Hours:** 9:05 AM - 4:05 PM ET with DST adjustments
 
 ### **Smart Market Status Display (v2.1)**
 
-- **"Market Closed" Message:** Shows clear status when stock market is closed
-- **Price Persistence:** Last known stock price remains visible until next trading day
+- **"Market Closed" Message:** Clear status when stock market is closed
+- **Price Persistence:** Last known stock price remains visible
 - **Arrow Preservation:** Price movement indicators persist through market close
-- **Intelligent Initialization:** Shows "Market Closed" instead of blank display on startup
-
-### **Enhanced User Experience**
-
-- **Professional Status Messages:** Clear communication of market state
-- **Data Continuity:** No loss of price information during market closure
-- **Battery Optimization:** Zero unnecessary API calls during off-hours
-- **Timezone Accuracy:** Proper Eastern Time handling for all market operations
 
 ## Performance Optimizations
 
@@ -256,7 +398,6 @@ flowchart TD
 - **Market hours detection** prevents unnecessary stock API calls
 - **Partial screen updates** to minimize display power consumption
 - **50ms loop delay** balances CPU usage with responsive button control
-- **Optional WiFi scan** disabled by default to speed up startup (~2 seconds saved)
 
 ### API Efficiency
 
@@ -267,10 +408,15 @@ flowchart TD
 ### Memory Management
 
 - **PROGMEM storage** for icons (saves RAM)
-- **Static buffers** for timestamp conversion
+- **StaticJsonDocument** for MQTT payloads (stack-based, efficient)
 - **Efficient string handling** to prevent memory fragmentation
 - **Constexpr constants** stored in flash memory instead of RAM
-- **Direct data updates** eliminates unnecessary array copying
+
+### Network Efficiency
+
+- **MQTT Keep-Alive** maintains persistent broker connection
+- **Retained Messages** for discovery configs (survive broker restart)
+- **Last Will and Testament** for reliable offline detection
 
 ## Configuration Options
 
@@ -286,7 +432,6 @@ flowchart TD
 ```cpp
 constexpr uint8_t BRIGHTNESS_LEVELS[] = {51, 102, 153, 204, 255}; // 5 levels: 20-100%
 uint8_t currentBrightnessIndex = 0;                                 // Default: 20%
-// Using M5Unified API: M5.Display.setBrightness()
 ```
 
 ### Market Hours (main.cpp)
@@ -294,7 +439,17 @@ uint8_t currentBrightnessIndex = 0;                                 // Default: 
 ```cpp
 int marketOpenMinutes = 9 * 60 + 5;   // 9:05 AM ET
 int marketCloseMinutes = 16 * 60 + 5;  // 4:05 PM ET
-// Timezone: EST/EDT auto-switching via configTime(-5 * 3600, 3600, ...)
+```
+
+### MQTT Settings (secrets.h)
+
+```cpp
+#define MQTT_BROKER "192.168.1.100"   // Home Assistant IP
+#define MQTT_PORT 1883                 // Default Mosquitto port
+#define MQTT_USER "mqtt_user"          // Optional authentication
+#define MQTT_PASSWORD "mqtt_pass"      // Optional authentication
+#define MQTT_CLIENT_ID "m5crypto"      // Unique client ID
+#define MQTT_TOPIC_PREFIX "m5crypto"   // Base topic for messages
 ```
 
 ## Development Tools
@@ -319,23 +474,51 @@ pio run -e debug
 pio run --target upload && pio device monitor
 ```
 
+### MQTT Debugging
+
+```bash
+# Monitor all m5crypto topics
+mosquitto_sub -h YOUR_HA_IP -u USER -P PASS -t "m5crypto/#" -v
+
+# Monitor Home Assistant discovery
+mosquitto_sub -h YOUR_HA_IP -u USER -P PASS -t "homeassistant/sensor/m5crypto_#/config" -v
+```
+
 ## Monitoring & Logs
 
 ### Serial Output Examples
 
+**Startup with MQTT:**
+
+```text
+=== Cryptocurrency Price Display v2.2 (M5StickC Plus2) ===
+Initial brightness set to: 51/255 (20%)
+WiFi connected to: YourNetwork
+Time synchronized: 2024-09-25 14:30:45 ET
+MQTT: Connecting to broker 192.168.1.100:1883
+MQTT: Connected successfully!
+MQTT: Published availability: online
+MQTT: Publishing Home Assistant discovery configs...
+MQTT: Discovery BTC -> OK
+MQTT: Discovery ETH -> OK
+MQTT: Discovery XRP -> OK
+MQTT: Discovery MSFT -> OK
+```
+
 **During Market Hours:**
 
 ```text
-=== Cryptocurrency Price Display v2.1 (M5StickC Plus2) ===
-WiFi connected to: YourNetwork
-Time synchronized: 2024-09-25 14:30:45 ET
 Current time: 14:30 ET, Market OPEN
 Successfully fetched crypto data:
   BTC: $63,245.67 CAD (UP)
   ETH: $3,456.78 CAD (DOWN)
   XRP: $0.89 CAD (UP)
-Successfully fetched stock data: MSFT: $425.67 USD (UP)
-Brightness changed to: 80/100 (level 4)
+Successfully fetched stock data (market open): MSFT: $425.67 USD (UP)
+MQTT: Publishing price updates...
+MQTT: BTC $63245.67 CAD -> OK
+MQTT: ETH $3456.78 CAD -> OK
+MQTT: XRP $0.89 CAD -> OK
+MQTT: MSFT $425.67 USD -> OK
 ```
 
 **After Market Close:**
@@ -343,13 +526,6 @@ Brightness changed to: 80/100 (level 4)
 ```text
 Current time: 16:06 ET, Market CLOSED
 Market closed - displaying last known price: MSFT: $425.67 USD
-```
-
-**Weekend/Before First Fetch:**
-
-```text
-Current time: 10:30 ET, Market CLOSED
-Market closed - no price data available yet
 ```
 
 ## Troubleshooting
@@ -360,20 +536,41 @@ Market closed - no price data available yet
 2. **API Errors** - Verify API keys and quotas
 3. **Time Sync Issues** - Check NTP server accessibility
 4. **Display Issues** - Verify M5StickC Plus2 connection
-5. **Stock API Fetching at Wrong Times** - Ensure timezone is properly configured (should see "ET" in logs, not "EDT")
-6. **MSFT Showing Blank/Zero** - Check if "Market Closed" message appears; this is normal behavior
-7. **Price Arrows Wrong Color** - Up arrows should be green, down arrows red; display may interpret colors differently
+5. **MQTT Connection Failed** - Check broker IP, port, and credentials
+6. **Entities Not Appearing in HA** - Verify MQTT integration is configured
+7. **Stock API Fetching at Wrong Times** - Ensure timezone shows "ET" in logs
+8. **MSFT Showing Blank/Zero** - Normal when "Market Closed" message appears
+
+### MQTT Troubleshooting
+
+1. **Verify broker is running:**
+   ```bash
+   systemctl status mosquitto
+   ```
+
+2. **Test connection manually:**
+   ```bash
+   mosquitto_pub -h YOUR_HA_IP -u USER -P PASS -t "test" -m "hello"
+   ```
+
+3. **Check HA MQTT integration:** Settings → Devices & Services → MQTT
+
+4. **Common MQTT errors:**
+   - `MQTT_CONNECT_BAD_CREDENTIALS` - Wrong username/password
+   - `MQTT_CONNECTION_TIMEOUT` - Wrong IP or firewall blocking
+   - `MQTT_CONNECT_UNAUTHORIZED` - User not authorized
 
 ### Debug Steps
 
 1. Enable serial monitor for detailed logs
 2. Check WiFi signal strength
 3. Verify API responses in serial output
-4. Test with minimal configuration
+4. Monitor MQTT topics with mosquitto_sub
+5. Check Home Assistant logs for MQTT errors
 
 ## License
 
-This project is open source. See the [LICENSE](LICENSE)  file for details.
+This project is open source. See the [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
@@ -387,6 +584,8 @@ This project is open source. See the [LICENSE](LICENSE)  file for details.
 
 - **Hardware Issues**: [M5Stack Community](https://community.m5stack.com/)
 - **API Issues**: Check respective API documentation
+- **MQTT Issues**: [Mosquitto Documentation](https://mosquitto.org/documentation/)
+- **Home Assistant**: [HA Community](https://community.home-assistant.io/)
 - **Code Issues**: Create an issue in this repository
 
 ---
