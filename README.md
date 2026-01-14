@@ -3,7 +3,7 @@
 A comprehensive cryptocurrency and stock price ticker that displays real-time prices on the M5StickC Plus2.
 Features intelligent market hours detection, price movement indicators, Home Assistant integration via MQTT, and customizable brightness control.
 
-![Hardware](https://img.shields.io/static/v1?label=Hardware&message=M5StickC%20PLUS2&color=red)
+![Hardware](https://img.shields.io/static/v1?label=Hardware&message=M5StickC%20Plus2&color=red)
 ![ESP32](https://img.shields.io/static/v1?label=ESP32&message=PICO%2DV3%2D02&color=blue)
 ![Platform](https://img.shields.io/badge/Platform-PlatformIO-orange)
 ![License](https://img.shields.io/badge/License-MIT-green)
